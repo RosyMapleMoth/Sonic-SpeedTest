@@ -13,7 +13,9 @@ and a local json file named secrets.json that has
 
 ### Installing
 
-this tool is not inteded for public use, and requres the user install all python libs used by the sonic.py file a list is TBD. reach out to me directly if you would like help setting up a functional version
+this tool is not inteded for public use, and requres the user install all python libs used by the sonic.py file a list is TBD. reach out to me directly if you would like help setting up a functional version.
+
+installing this on a computer you do not have admin on requires building it yourself.
 
 
 ## License
