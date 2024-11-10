@@ -1,6 +1,6 @@
 # Auto network speed test
 
-This application is intedend for use to by Sonic internet installers to automatically do network tests and take photos of 
+This application is intedend for use to by Sonic internet installers to automatically do network tests and take photos of said tests.
 
 
 ## Getting Started
