@@ -1,17 +1,10 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-import subprocess
 import time
-import pyautogui
 import AppOpener
 from mss import mss
-import comtypes.stream 
-import comtypes
 import pywinauto
 import tkinter as tk
-import os
-from twilio.rest import Client
 import paramiko
 from time import gmtime, strftime
 import socket
@@ -30,7 +23,7 @@ with open("secrets.json") as f:
 
 
 
-SSH_Client = paramiko.SSHClient()
+ssh_client = paramiko.SSHClient()
 sftp_client = None
 root = tk.Tk()
 root.geometry("400x400")
@@ -40,117 +33,119 @@ root.columnconfigure(1, weight=1)
 root.columnconfigure(2, weight=1)
 
 
-networkConnectedVar = tk.BooleanVar()
-networkConnectedVar.set(False)
-sftpConnectedVar = tk.BooleanVar()
-sftpConnectedVar.set(False)
+network_status = tk.BooleanVar()
+network_status.set(False)
+sftp_status = tk.BooleanVar()
+sftp_status.set(False)
 
 
 
 # labels vals
-connectionStatusVal = tk.StringVar()
-connectionStatusVal.set("booting up")
-ImageStatusVal = tk.StringVar()
-ImageStatusVal.set("-1/3")
-nameVal = tk.StringVar()
-networkStatusLabelVal = tk.StringVar()
-networkStatusLabelVal.set("Network Offline")
+connection_status_labal_variable = tk.StringVar()
+connection_status_labal_variable.set("booting up")
+upload_status_label_variable = tk.StringVar()
+upload_status_label_variable.set("-1/3")
+username_entry_variable = tk.StringVar()
+network_status_label_variable = tk.StringVar()
+network_status_label_variable.set("Network Offline")
 
 
 
 # lables
-connectionStatusLabelDyno = tk.Label(root, textvariable=connectionStatusVal)
-networkStatusLabelDyno = tk.Label(root, textvariable=networkStatusLabelVal)
-networkStatusLabelDyno.grid(column=1, row=0, sticky=tk.W)
-connectionStatusLabel = tk.Label(root, text="connection : ")
-connectionStatusLabel.grid(column=0, row=0, sticky=tk.W)
-connectionStatusLabelDyno.grid(column=2, row=0, sticky=tk.W)
-imageStatusLabelDyno = tk.Label(root, textvariable=ImageStatusVal)
-imageStatusLabel = tk.Label(root, text="progress : ")
-imageStatusLabel.grid(column=0, row=1, sticky=tk.W)
-imageStatusLabelDyno.grid(column=2, row=1, sticky=tk.W)
-NameLabel = tk.Label(root, text="name :")
-NameLabel.grid(column=0, row=2, sticky=tk.W)
+sftp_status_dynamic_label = tk.Label(root, textvariable=connection_status_labal_variable)
+network_status_dynamic_label = tk.Label(root, textvariable=network_status_label_variable)
+network_status_dynamic_label.grid(column=1, row=0, sticky=tk.W)
+sftp_status_static_label = tk.Label(root, text="connection : ")
+sftp_status_static_label.grid(column=0, row=0, sticky=tk.W)
+sftp_status_dynamic_label.grid(column=2, row=0, sticky=tk.W)
+upload_status_dynamic_label = tk.Label(root, textvariable=upload_status_label_variable)
+upload_status_static_label = tk.Label(root, text="progress : ")
+upload_status_static_label.grid(column=0, row=1, sticky=tk.W)
+upload_status_dynamic_label.grid(column=2, row=1, sticky=tk.W)
+username_static_label = tk.Label(root, text="name :")
+username_static_label.grid(column=0, row=2, sticky=tk.W)
 
 
 
-nameEntry = tk.Entry(root,width=10, textvariable=nameVal)
-nameEntry.grid(column=2, row=2, sticky=tk.W)
+username_entry = tk.Entry(root,width=10, textvariable=username_entry_variable)
+username_entry.grid(column=2, row=2, sticky=tk.W)
 
 ## am connected to network test
-def isConnectedToNetwork():
+def check_internet_connection():
     while (True):
         time.sleep(1)
-        networkStatusLabelDyno.config(bg="grey")
+        network_status_dynamic_label.config(bg="grey")
         try:
             # connect to the host -- tells us if the host is actually
             # reachable
             socket.create_connection(("1.1.1.1", 53))
-            networkStatusLabelVal.set("Network Online")
-            networkStatusLabelDyno.config(bg="green")
-            networkConnectedVar.set(True)
+            network_status_label_variable.set("Network Online")
+            network_status_dynamic_label.config(bg="green")
+            network_status.set(True)
         except OSError:
             pass
-            networkConnectedVar.set(False)
-            networkStatusLabelVal.set("Network Offline")
-            networkStatusLabelDyno.config(bg="red")
+            network_status.set(False)
+            network_status_label_variable.set("Network Offline")
+            network_status_dynamic_label.config(bg="red")
 
-def isConnectedToSFTP():
+def check_sftp_connection():
+    connect_to_sftp()
     while (True):
         time.sleep(1)
-        global sftp_client
+        print("attempt SFTP connect")
         try:
-            sftp_client.listdir()
-            connectionStatusVal.set("SFTP Connected")
-            connectionStatusLabelDyno.config(bg="green")
-            sftpConnectedVar.set(True)
-        except Exception as e:
+            transport = ssh_client.get_transport()
+            transport.send_ignore()
+
+            connection_status_labal_variable.set("SFTP Connected")
+            sftp_status_dynamic_label.config(bg="green")
+            sftp_status.set(True)
+        except EOFError as e:
             print(e)
-            connectionStatusVal.set("SFTP Failed")
-            connectionStatusLabelDyno.config(bg="red")
-            sftpConnectedVar.set(False)
-            connectToSftp()
+            connection_status_labal_variable.set("SFTP Failed")
+            sftp_status_dynamic_label.config(bg="red")
+            sftp_status.set(False)
+            connect_to_sftp()
 
 
-def connectToSftp():
-    print("attempt SFTP connect")
-    connectionStatusVal.set("attempting to connect")
-    global SSH_Client
-    SSH_Client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+def connect_to_sftp():
+    connection_status_labal_variable.set("attempting to connect")
+    global ssh_client
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        SSH_Client.connect(hostname=hostname,
+        ssh_client.connect(hostname=hostname,
                         port=port,
                         username=username)
         global sftp_client 
-        sftp_client = SSH_Client.open_sftp()
-        connectionStatusVal.set("SFTP Connected")
-        connectionStatusLabelDyno.config(bg="green")
+        sftp_client = ssh_client.open_sftp()
+        connection_status_labal_variable.set("SFTP Connected")
+        sftp_status_dynamic_label.config(bg="green")
         print("SFTP connect Succeeded")
     except Exception as e :
         print("SFTP connect FAILED")
         print(e)
-        connectionStatusVal.set("SFTP Failed")
-        connectionStatusLabelDyno.config(bg="red")
+        connection_status_labal_variable.set("SFTP Failed")
+        sftp_status_dynamic_label.config(bg="red")
 
-def uploadFiles():
-    dirName = nameVal.get() + " " + strftime("%d %b %Y %H:%M:%S", gmtime())
+def upload_images():
+    dirName = username_entry_variable.get() + " " + strftime("%d %b %Y %H:%M:%S", gmtime())
     
     print(f"attempting to make {dirName}")
     try: 
         sftp_client.mkdir("speedtest/"+dirName)
-        ImageStatusVal.set("0/3")
+        upload_status_label_variable.set("0/3")
     except FileNotFoundError as err:
         print(f"Could not make {dirName} could not be made")
     except Exception as e:
         print("unhandled exception")
         print(e)
 
-    print(f"attempting to upload broadband.png")
+    print("attempting to upload broadband.png")
     localFilePath = "broadband.png"
     remoteFilePath = "speedtest/"+dirName+"/broadband.png"
     try:
         sftp_client.put(localFilePath, remoteFilePath)
-        ImageStatusVal.set("1/3")
+        upload_status_label_variable.set("1/3")
     except FileNotFoundError as err:
         print(f"File {localFilePath} was not found on the local system")
     except Exception as e:
@@ -158,12 +153,12 @@ def uploadFiles():
         print(e)
 
 
-    print(f"attempting to upload sonic.png")
+    print("attempting to upload sonic.png")
     localFilePath = "sonic.png"
     remoteFilePath = "speedtest/"+dirName+"/sonic.png"
     try:
         sftp_client.put(localFilePath, remoteFilePath)
-        ImageStatusVal.set("2/3")
+        upload_status_label_variable.set("2/3")
     except FileNotFoundError as err:
         print(f"File {localFilePath} was not found on the local system")
     except Exception as e:
@@ -171,24 +166,23 @@ def uploadFiles():
         print(e)
 
 
-    print(f"attempting to upload pcmag.png")
+    print("attempting to upload pcmag.png")
     localFilePath = "pcmag.png"
     remoteFilePath = "speedtest/"+dirName+"/pcmag.png"
     try:
         sftp_client.put(localFilePath, remoteFilePath)
-        ImageStatusVal.set("3/3")
+        upload_status_label_variable.set("3/3")
     except FileNotFoundError as err:
         print(f"File {localFilePath} was not found on the local system")
     except Exception as e:
         print("unhandled exception")
         print(e)
 
-def button_clicked():
-    speedTest()
-    connect()
-    uploadFiles()
+def test_internet_speed_and_upload():
+    test_internet_speeds()
+    upload_images()
 
-def speedTest():
+def test_internet_speeds():
 
 
     AppOpener.open("Speedtest") # Opens app
@@ -234,37 +228,35 @@ def speedTest():
             print(filename)
     print("broadband speed test done")
 
+def test_and_upload_when_ready():
+    speed_test_when_ready()
+    upload_images_when_ready()
 
-def testAndUploadWhenReady():
-    speedTestWhenReady()
-    upploadWhenReady()
-
-def startTestAndUploadThread():
-    fullbtn.config(state=tk.DISABLED, bg="grey",text="awaiting network")
-    fullbtn.config()
-    testAndUploadDaemon = threading.Thread(target=testAndUploadWhenReady)
+def start_speed_test_and_upload_as_thread():
+    test_and_upload_when_ready_button.config(state=tk.DISABLED, bg="grey",text="awaiting network")
+    test_and_upload_when_ready_button.config()
+    testAndUploadDaemon = threading.Thread(target=test_and_upload_when_ready)
     testAndUploadDaemon.daemon = True
     testAndUploadDaemon.start()  
 
-
-def speedTestWhenReady():
+def speed_test_when_ready():
     while (True):
-        if (networkConnectedVar.get()):
+        if (network_status.get()):
             print("network up starting speedtest")
-            speedTest()
+            test_internet_speeds()
             return
     
-def upploadWhenReady():
+def upload_images_when_ready():
     while (True):
-        if (sftpConnectedVar.get()):
+        if (sftp_status.get()):
             print("sftp up starting speedtest")
-            uploadFiles()
+            upload_images()
             return
 
 # Creating a button with specified options
-fullbtn = tk.Button(root, 
+test_and_upload_when_ready_button = tk.Button(root, 
                    text="Test when ready", 
-                   command=startTestAndUploadThread,
+                   command=start_speed_test_and_upload_as_thread,
                    activebackground="blue", 
                    activeforeground="white",
                    anchor="center",
@@ -283,11 +275,11 @@ fullbtn = tk.Button(root,
                    pady=5,
                    width=12,
                    wraplength=100)
-fullbtn.grid(column=0,row=3, columnspan=3, pady=10)
+test_and_upload_when_ready_button.grid(column=0,row=3, columnspan=3, pady=10)
 
-speedTestBtn = tk.Button(root, 
+speed_test_button = tk.Button(root, 
                    text="Test speed", 
-                   command=speedTest,
+                   command=test_internet_speeds,
                    activebackground="blue", 
                    activeforeground="white",
                    anchor="center",
@@ -306,11 +298,11 @@ speedTestBtn = tk.Button(root,
                    pady=5,
                    width=8,
                    wraplength=100)
-speedTestBtn.grid(row=4,column=0)
+speed_test_button.grid(row=4,column=0)
 
-uploadbtn = tk.Button(root, 
+upload_button = tk.Button(root, 
                    text="upload", 
-                   command=uploadFiles,
+                   command=upload_images,
                    activebackground="blue", 
                    activeforeground="white",
                    anchor="center",
@@ -329,12 +321,12 @@ uploadbtn = tk.Button(root,
                    pady=5,
                    width=8,
                    wraplength=100)
-uploadbtn.grid(row=4,column=2)
+upload_button.grid(row=4,column=2)
 
 
-connectbtn = tk.Button(root, 
+sftp_connect_button = tk.Button(root, 
                    text="connect", 
-                   command=connectToSftp,
+                   command=connect_to_sftp,
                    activebackground="blue", 
                    activeforeground="white",
                    anchor="center",
@@ -353,23 +345,22 @@ connectbtn = tk.Button(root,
                    pady=5,
                    width=8,
                    wraplength=100)
-connectbtn.grid(row=4,column=1)
+sftp_connect_button.grid(row=4,column=1)
 
-connectionStatusVal.set("SFTP offline")
-connectionStatusLabelDyno.config(bg="red")
+connection_status_labal_variable.set("SFTP offline")
+sftp_status_dynamic_label.config(bg="red")
 # Start the event loop.
 
 
-networkDaemon = threading.Thread(target=isConnectedToNetwork)
-networkDaemon.daemon = True
-networkDaemon.start()  
+network_daemon = threading.Thread(target=check_internet_connection)
+network_daemon.daemon = True
+network_daemon.start()  
 
-sftpDaemon = threading.Thread(target=isConnectedToSFTP)
-sftpDaemon.daemon = True
-sftpDaemon.start() 
+sftp_daemon = threading.Thread(target=check_sftp_connection)
+sftp_daemon.daemon = True
+sftp_daemon.start() 
 
 
-testAndUploadWhenReady
 
 root.mainloop()
 
