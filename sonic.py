@@ -1,3 +1,4 @@
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
@@ -21,7 +22,8 @@ with open("secrets.json") as f:
     username = secretsJson["username"]
     port = secretsJson["port"]
 
-
+url = 'http://' + hostname
+print(url)
 
 ssh_client = paramiko.SSHClient()
 sftp_client = None
@@ -92,7 +94,6 @@ def check_sftp_connection():
     connect_to_sftp()
     while (True):
         time.sleep(1)
-        print("attempt SFTP connect")
         try:
             transport = ssh_client.get_transport()
             transport.send_ignore()
@@ -106,7 +107,6 @@ def check_sftp_connection():
             sftp_status_dynamic_label.config(bg="red")
             sftp_status.set(False)
             connect_to_sftp()
-
 
 def connect_to_sftp():
     connection_status_labal_variable.set("attempting to connect")
@@ -127,7 +127,7 @@ def connect_to_sftp():
         connection_status_labal_variable.set("SFTP Failed")
         sftp_status_dynamic_label.config(bg="red")
 
-def upload_images():
+def upload_images_to_sftp():
     dirName = username_entry_variable.get() + " " + strftime("%d %b %Y %H:%M:%S", gmtime())
     
     print(f"attempting to make {dirName}")
@@ -136,6 +136,7 @@ def upload_images():
         upload_status_label_variable.set("0/3")
     except FileNotFoundError as err:
         print(f"Could not make {dirName} could not be made")
+        raise 
     except Exception as e:
         print("unhandled exception")
         print(e)
@@ -178,9 +179,32 @@ def upload_images():
         print("unhandled exception")
         print(e)
 
-def test_internet_speed_and_upload():
+def upload_images_to_backend():
+    url = 'http://23.92.25.156'
+    image_one_name = "sonic.png"
+    image_two_name = "pcmag.png"
+    iamge_three_name = "broadband.png"
+    try:
+        with open(image_one_name, "rb") as fileOne, open(image_two_name, "rb") as fileTwo, open(iamge_three_name, "rb") as fileThree:
+            files = {'img_1': fileOne, 'img_2': fileTwo, 'img_3': fileThree}
+
+            response = requests.post(url=url+"/upload_speeds", files=files, data={'speed': -0, 'username':username_entry_variable.get()})
+            print(response.status_code)
+    except Exception as e:
+        requests.post(url=url+"/error_with_test", data={'username':username_entry_variable.get()})
+        print(e)
+
+def test_internet_speed_and_upload_sftp():
     test_internet_speeds()
-    upload_images()
+    upload_images_to_sftp()
+
+def test_internet_speed_and_upload():
+    try:
+        request_new_session()
+        test_internet_speeds()
+        upload_images_to_backend()
+    except Exception as e:
+        abort_speed_test()
 
 def test_internet_speeds():
 
@@ -229,8 +253,11 @@ def test_internet_speeds():
     print("broadband speed test done")
 
 def test_and_upload_when_ready():
-    speed_test_when_ready()
-    upload_images_when_ready()
+    try:
+        speed_test_when_ready()
+        upload_images_to_backend()
+    except Exception as e:
+        abort_speed_test()
 
 def start_speed_test_and_upload_as_thread():
     test_and_upload_when_ready_button.config(state=tk.DISABLED, bg="grey",text="awaiting network")
@@ -242,7 +269,11 @@ def start_speed_test_and_upload_as_thread():
 def speed_test_when_ready():
     while (True):
         if (network_status.get()):
-            print("network up starting speedtest")
+            print("network up requesting session")
+            if (not request_new_session()):
+                print("internal server error please contact Seaney")
+                return
+            print("new session requested starting speed test")
             test_internet_speeds()
             return
     
@@ -250,8 +281,19 @@ def upload_images_when_ready():
     while (True):
         if (sftp_status.get()):
             print("sftp up starting speedtest")
-            upload_images()
+            upload_images_to_sftp()
             return
+
+def request_new_session():
+    response = requests.get(url=url+"/init_session", data={'username':username_entry_variable.get()})
+    print(response)
+    return True
+
+def abort_speed_test():
+    response = requests.post(url=url+"/error_with_test", data={'username':username_entry_variable.get()})
+    return response.json()['message_sent']
+
+
 
 # Creating a button with specified options
 test_and_upload_when_ready_button = tk.Button(root, 
@@ -279,7 +321,7 @@ test_and_upload_when_ready_button.grid(column=0,row=3, columnspan=3, pady=10)
 
 speed_test_button = tk.Button(root, 
                    text="Test speed", 
-                   command=test_internet_speeds,
+                   command=request_new_session,
                    activebackground="blue", 
                    activeforeground="white",
                    anchor="center",
@@ -302,7 +344,7 @@ speed_test_button.grid(row=4,column=0)
 
 upload_button = tk.Button(root, 
                    text="upload", 
-                   command=upload_images,
+                   command=upload_images_to_backend,
                    activebackground="blue", 
                    activeforeground="white",
                    anchor="center",
