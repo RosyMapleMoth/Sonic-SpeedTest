@@ -25,7 +25,7 @@ app.config['MAX_CONTENT_LENGTH'] = None
 # app.config['MAX_FORM_PARTS'] = ...
 app.config['MAX_FORM_MEMORY_SIZE'] = 50 * MEGABYTE
 
-with open("secreats.json") as f:
+with open("secrets.json") as f:
     secrets_json = json.load(f)
     app.config['MAX_CONTENT_LENGTH'] = None
     

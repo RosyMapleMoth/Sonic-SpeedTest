@@ -1,8 +1,11 @@
 # images
 *.png
 
-# secreats
+# secrets
 *.json
+
+# 
+*.spec
 
 # folders
 **/

@@ -3,7 +3,7 @@ import os
 import psycopg2
 import uuid
 
-with open("secreats.json") as f:
+with open("secrets.json") as f:
     secrets_json = json.load(f)
     conn = psycopg2.connect(
         host=secrets_json["database_host"],
